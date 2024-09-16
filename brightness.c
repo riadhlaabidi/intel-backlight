@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,7 +39,7 @@ int main(int argc, char *argv[])
     fscanf(m_ptr, "%d", &max);
     fclose(m_ptr);
 
-    int percentage = actual * 100 / max;
+    int percentage = (int)round(((double)actual * 100 / max));
 
     char *home = getenv(HOME);
 

@@ -53,15 +53,21 @@ offset=$((max_brightness*percentage/100))
 
 case $op in 
   "-inc")
+    if [ $curr_brightness -eq $max_brightness ]
+    then 
+        exit 0
+    fi
     new_brightness=$((curr_brightness+offset))
     curr_brightness=$((new_brightness>max_brightness ? max_brightness : new_brightness))
-    echo $curr_brightness
     echo $curr_brightness > $BRIGHTNESS_PATH
     ;;
   "-dec" )
+    if [ $curr_brightness -eq 0 ]
+    then 
+        exit 0
+    fi
     new_brightness=$((curr_brightness-offset))
     curr_brightness=$((new_brightness<0 ? 0 : new_brightness))
-    echo $curr_brightness
     echo $curr_brightness > $BRIGHTNESS_PATH
     ;; 
   *)
