@@ -21,7 +21,7 @@ cp_ib=$?
 if [ $cp_ib -eq 0 ] 
 then 
   echo
-  echo "Overwritten intel-backligh to $INSTALL_DIR"
+  echo "Overwritten intel-backlight to $INSTALL_DIR"
 fi
 
 if [ $cp_br -eq 0 ] && [ $cp_ib -eq 0 ]

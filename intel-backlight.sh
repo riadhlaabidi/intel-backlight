@@ -1,79 +1,144 @@
-#!/bin/sh
+#!/bin/bash
+
+NAME=`basename $0`
 
 usage () 
 {
-  echo "Usage: `basename $0` [operation: -inc|-dec] [percentage: 1..100]"
+  cat <<EOF
+Usage:  $NAME [OPTION]
+
+Sets screen brightness using intel backlight.
+
+Options:
+  -s, --set <percentage>       Set brightness to <percentage>
+  -i, --increase <percentage>  Increase the current brightness with <percentage> 
+  -d, --decrease <percentage>  Decrease the current brightness with <percentage>
+  -r, --reset                  Reset to maximum brightness (100%)
+
+  -h, --help                   Display this help and exit
+
+Percentage should be between 0 and 100.
+EOF
 }
 
 INTEL_BACKLIGHT=/sys/class/backlight/intel_backlight
-
 MAX_BRIGHTNESS_PATH=$INTEL_BACKLIGHT/max_brightness
 BRIGHTNESS_PATH=$INTEL_BACKLIGHT/brightness
 
-E_USAGE=64
-E_OSFILE=72
-
-if [ ! -e $INTEL_BACKLIGHT ] || [ ! -e $MAX_BRIGHTNESS_PATH ] || [ ! -e $BRIGHTNESS_PATH ]
+if [ ! -e $INTEL_BACKLIGHT ] 
 then 
-  printf "intel_backlight files not found:\n\t%s\n\t%s\n\t%s" $INTEL_BACKLIGHT $MAX_BRIGHTNESS_PATH $BRIGHTNESS_PATH 
-  exit $E_OSFILE
+  echo "Error: $INTEL_BACKLIGHT is not found" >&2
+  echo "This tool controls brightness using backlight for intel cards only, sorry!" >&2
+  exit 1
 fi 
 
-PARAMS=2
-DEFAULT_PERCENTAGE=5 
-DEFAULT_OP="inc"
-
-if [ $# -ne $PARAMS ] 
+if [ ! -e $MAX_BRIGHTNESS_PATH ] || [ ! -e $BRIGHTNESS_PATH ]
 then 
-  usage
-  exit $E_USAGE
+  echo "Error: files $MAX_BRIGHTNESS_PATH or $BRIGHTNESS_PATH are not found" >&2
+  exit 1
 fi
 
-op=${1:-$DEFAULT_OP}
-percentage=${2:-$DEFAULT_PERCENTAGE}
+OPTIONS=s:i:d:rh
+LONG_OPTIONS=set:,increase:,decrease:,reset,help
 
-case $percentage in 
-  *[!0-9]*|'') 
-    echo "Bad percentage, expected positive integer value">&2
-    usage
-    exit $E_USAGE
-    ;;
-  * )
-    if [ $percentage -lt 1 ] || [ $percentage -gt 100 ]
-    then
+PARSED=$(getopt -o $OPTIONS -l $LONG_OPTIONS -n $NAME -- "$@")
+
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+eval set -- "$PARSED"
+unset PARSED
+
+operation=""
+percentage=""
+
+while true; do
+  case "$1" in
+    '-s'|'--set')
+      operation="set"
+      percentage="$2"
+      shift 2
+      continue
+      ;;
+    '-i'|'--increase')
+      operation="inc"
+      percentage="$2"
+      shift 2
+      continue
+      ;;
+    '-d'|'--decrease')
+      operation="dec"
+      percentage="$2"
+      shift 2
+      continue
+      ;;
+    '-r'|'--reset')
+      shift
+      operation="res"
+      continue
+      ;;
+    '-h'|'--help')
       usage
-      exit $E_USAGE 
-    fi
-    ;;
-esac
+      exit 0
+      ;;
+    '--')
+      break
+      ;;
+    *)
+      echo "Error: Invalid option '$1'" >&2
+      exit 1
+      ;;
+  esac
+done
+
+
+if [ -z $operation ]; then
+    echo "Error: no operation specified" >&2
+    usage
+    exit 1
+fi
 
 max_brightness=$(< $MAX_BRIGHTNESS_PATH)
-curr_brightness=$(< $BRIGHTNESS_PATH)
-offset=$((max_brightness*percentage/100))
 
-case $op in 
-  "-inc")
-    if [ $curr_brightness -eq $max_brightness ]
-    then 
-        exit 0
-    fi
-    new_brightness=$((curr_brightness+offset))
-    curr_brightness=$((new_brightness>max_brightness ? max_brightness : new_brightness))
-    echo $curr_brightness > $BRIGHTNESS_PATH
+if [[ $operation == res ]]; then
+  echo $max_brightness > $BRIGHTNESS_PATH
+  exit 0
+fi
+
+case $percentage in 
+  ''|*[!0-9]*|0[0-9]*) 
+    echo "Error: Bad percentage, expected integer value between 0..100" >&2
+    exit 1
     ;;
-  "-dec" )
-    if [ $curr_brightness -eq 0 ]
-    then 
-        exit 0
+  * )
+    if [ $percentage -lt 0 ] || [ $percentage -gt 100 ]
+    then
+      echo "Error: Bad percentage, expected integer value between 0..100" >&2
+      exit 1
     fi
-    new_brightness=$((curr_brightness-offset))
-    curr_brightness=$((new_brightness<0 ? 0 : new_brightness))
-    echo $curr_brightness > $BRIGHTNESS_PATH
-    ;; 
-  *)
-    usage
-    exit E_USAGE
     ;;
 esac
+
+offset=$((max_brightness*percentage/100))
+curr_brightness=$(< $BRIGHTNESS_PATH)
+
+case "$operation" in
+  'set')
+    echo $offset > $BRIGHTNESS_PATH
+    exit 0
+    ;;
+  'inc')
+    new_brightness=$((curr_brightness+offset))
+    ;;
+  'dec')
+    new_brightness=$((curr_brightness-offset))
+    ;;
+esac
+
+[ "$new_brightness" -lt 0 ] && new_brightness=0
+[ "$new_brightness" -gt "$max_brightness" ] && new_brightness=$max_brightness
+
+echo $new_brightness > $BRIGHTNESS_PATH
 
 exit 0
